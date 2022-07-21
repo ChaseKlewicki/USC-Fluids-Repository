@@ -9,7 +9,6 @@ Each function must include:
 3. The author of the function 
 3. A section on related literature / code used to make the function
 5. A section in the example script demonstrating how to use the function. 
-6. Placed in the correct folder
 
 To beautify a Matlab function: Ensure all code is within 76 col limit then select all (ctrl-A) and smart indent (ctrl-i)
 To beautify a Python function: Adhere to PEP8. (Many autoformatting softwares exist... see Black, autopep8... etc)
