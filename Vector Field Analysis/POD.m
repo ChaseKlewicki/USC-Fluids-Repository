@@ -23,24 +23,24 @@ function [Zeta, Sigma, Xi] = POD(uMat, vMat, dx, dy, dt)
 [ny, nx, nt] = size(uMat);
 
 % Reshape u and v matrices from 3 to 2 dimensions
-u = reshape(uMat,[nx*ny,nt]);
-v = reshape(vMat,[nx*ny,nt]);
+u = reshape(uMat, [nx * ny, nt]);
+v = reshape(vMat, [nx * ny, nt]);
 
 % Combine u and v to process simultaneously
 U = [u; v];
 U(isnan(U)) = 0;
 
 % Scaling matrices -- in this case, we have uniform grids
-Sx = sqrt(dx*dy)*speye(2*nx*ny);
-St = sqrt(dt)*speye(nt);
+Sx = sqrt(dx*dy) * speye(2*nx*ny);
+St = sqrt(dt) * speye(nt);
 
 % Rescale U
-Us = Sx*U*St;
+Us = Sx * U * St;
 
 % Compute POD modes using SVD
-[Psi,Sigma,Phi] = svd(Us,"econ");
-Zeta = Sx\Psi;
-Xi = St\Phi;
+[Psi, Sigma, Phi] = svd(Us, "econ");
+Zeta = Sx \ Psi;
+Xi = St \ Phi;
 
 % % Compute POD modes using Eig
 % K = Us'*Us;
