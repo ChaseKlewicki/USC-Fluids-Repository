@@ -1,8 +1,8 @@
 function [sigma, xPos, yPos] = FTLE(uMesh, vMesh, xVec, yVec, ...
     tStart, tLength, tStep, ...
     dt, xMinROI, xMaxROI, ...
-    yMinROI, yMaxROI, ...
-    nx, ny, method)
+    yMinROI,yMaxROI, ...
+    nx ,ny, method, xMask, yMask)
 % Function for computing 2-D finite time Lypanov exponents from a
 % time series of vector fields. At the start time the flow map is
 % intialized and its deformation is computed by integrating the vector
@@ -31,6 +31,8 @@ function [sigma, xPos, yPos] = FTLE(uMesh, vMesh, xVec, yVec, ...
 % ny: Number of grid points in ROI y-direction
 % Method: Integration method for determining particle trajectories
 % (see trajectory function)
+% xMask: vector of x locations for closed polygon mask
+% yMask: vector of y locations for closed polygon mask
 
 % Outputs
 % sigma: Field of FTLE values. [nx x ny x t_length]
@@ -43,56 +45,73 @@ function [sigma, xPos, yPos] = FTLE(uMesh, vMesh, xVec, yVec, ...
 
 
 % Find bounds of vector field data
-xMin = min(xVec);
-xMax = max(xVec);
-yMin = min(yVec);
-yMax = max(yVec);
+xMin=min(xVec);
+xMax=max(xVec);
+yMin=min(yVec);
+yMax=max(yVec);
 
 % define the initial region of the fluid to track
-sxcoor = linspace(xMinROI, xMaxROI, nx);
-sycoor = linspace(yMinROI, yMaxROI, ny);
+sxcoor=linspace(xMinROI,xMaxROI,nx);
+sycoor=linspace(yMinROI,yMaxROI,ny);
 
 % initial position
-[xPosTemp, yPosTemp] = ndgrid(sxcoor, sycoor);
+[xPosTemp, yPosTemp]=ndgrid(sxcoor,sycoor);
+
+% Check for mask
+if exist('xMask','var') && exist('yMask','var')
+    % find positions inside mask and set to nan
+    [in, ~] = inpolygon(xPosTemp, yPosTemp, xMask, yMask);
+    xPosTemp(in) = nan;
+    yPosTemp(in) = nan;
+else
+    % If no mask exists set all points to be outside mask
+    in = zeros(size(xPosTemp));
+end
 
 % initialize FTLE value
-sigma = zeros(nx, ny);
+sigma=zeros(nx,ny);
 
 % integration time length
-tSpan = abs(tLength) * dt;
+tSpan=abs(tLength)*dt;
 
 % Initialize flags
-calcFTLE = ones(nx, ny, 'logical');
-outDomain = zeros(nx, ny, 'logical');
+calcFTLE=ones(nx,ny,'logical');
+outDomain=zeros(nx,ny,'logical');
 
 % Create time vector for loop
-tLoop = tStart:tStep:tStart + tLength;
+tLoop=tStart:tStep:tStart + tLength;
 
 % Initalize position matrix
-xPos = repmat(zeros(nx, ny), 1, 1, length(tLoop));
-yPos = repmat(zeros(nx, ny), 1, 1, length(tLoop));
+xPos = repmat(zeros(nx,ny),1,1,length(tLoop));
+yPos = repmat(zeros(nx,ny),1,1,length(tLoop));
 
 % Define time vector
-tVec = (0:sign(tStep) * 1:tStep) * dt;
+tVec = (0:sign(tStep)*1:tStep)*dt;
 
 for t = tLoop
 
-    tIndex = find(tLoop == t);
+    tIndex = find(tLoop==t);
 
-    xPos(:, :, tIndex) = xPosTemp;
-    yPos(:, :, tIndex) = yPosTemp;
+    xPos(:,:,tIndex) = xPosTemp;
+    yPos(:,:,tIndex) = yPosTemp;
 
     %%%%%% if the point is inside, calculate it's trajectory
     [xPosTemp(~outDomain), yPosTemp(~outDomain)] = ...
         trajectory(xVec, yVec, tVec, ...
-        uMesh(:, :, t:sign(tStep)*1:t+tStep), ...
-        vMesh(:, :, t:sign(tStep)*1:t+tStep), ...
+        uMesh(:,:,t:sign(tStep)*1:t + tStep), ...
+        vMesh(:,:,t:sign(tStep)*1:t + tStep), ...
         xPosTemp(~outDomain), yPosTemp(~outDomain), method);
 
 
+    % If the mask exists
+    if exist('xMask','var') && exist('yMask','var')
+        % Check for positions inside mask
+        [in, ~] = inpolygon(xPosTemp, yPosTemp, xMask, yMask);
+    end
+
     % Determine particles that have trajectories outside the domain
-    index = (xPosTemp - xMin) .* (xPosTemp - xMax) >= 0 | ...
-        (yPosTemp - yMin) .* (yPosTemp - yMax) >= 0;
+    index = (xPosTemp-xMin).*(xPosTemp-xMax)>=0 | ...
+        (yPosTemp-yMin).*(yPosTemp-yMax)>=0 | in;
 
     % Change flag to indicate they have departed
     outDomain(index) = true;
@@ -100,16 +119,16 @@ for t = tLoop
     % Find adjacent points
     M = zeros(size(xPosTemp));
     M(index) = 1;
-    index = conv2(M, [1, 1, 1; 1, 1, 1; 1, 1, 1], 'same') > 0;
+    index = conv2(M,[1,1,1;1,1,1;1,1,1],'same')>0;
 
     % Find row and column of points
-    [ix, iy] = find(index);
+    [ix,iy] = find(index);
 
     % Loop through points that have exited domain and their neighbors
     for i = 1:numel(ix)
         % Compute FTLE
-        sigma(ix(i), iy(i)) = calculateFTLE(ix(i), iy(i), ...
-            xPosTemp, yPosTemp, ...
+        sigma(ix(i),iy(i)) = calculateFTLE(ix(i),iy(i), ...
+            xPosTemp,yPosTemp, ...
             tSpan, sxcoor, sycoor);
     end
 
@@ -117,31 +136,30 @@ for t = tLoop
     calcFTLE(index) = false;
 
     % Print progress
-    c_proc = strcat('process accomplished :  ', ...
-        num2str(100*tIndex/abs(tLength/tStep), ...
-        ' %03.0f'), '/100');
-    disp(c_proc);
+    c_proc = strcat( 'process accomplished :  ', ...
+        num2str( 100 * tIndex/abs(tLength/tStep), ...
+        ' %03.0f' ),'/100');
+    disp( c_proc );
 end
 
 % calculate FTLE for all the points inside the domain at the last
 % time step.
 
 % Find row and column of points
-[ix, iy] = find(calcFTLE);
+[ix,iy] = find(calcFTLE);
 
 % Loop through points that have exited domain and their neighbors
 for i = 1:numel(ix)
     % Compute FTLE
-    sigma(ix(i), iy(i)) = calculateFTLE(ix(i), iy(i), ...
-        xPosTemp, yPosTemp, ...
+    sigma(ix(i),iy(i)) = calculateFTLE(ix(i),iy(i), ...
+        xPosTemp,yPosTemp, ...
         tSpan, sxcoor, sycoor);
 end
 
 end
 
 
-function [X, Y] = trajectory(xVec, yVec, tVec, uMesh, vMesh, x0, y0, ...
-    method)
+function [X,Y] = trajectory(xVec, yVec, tVec, uMesh, vMesh, x0, y0, method)
 % Function which computes trajectory of particles in a grid by
 % integrating vector field of velocity values.
 
@@ -174,41 +192,41 @@ Y = zeros(size(y0));
 % NaNs propogate NanNs due to cubic interpolation! Highly suggested
 % that all NaNs are removed from data prior to running this function.
 % Replace NaNs with zeros.
-uMesh(isnan(uMesh)) = 0;
-vMesh(isnan(vMesh)) = 0;
+uMesh(isnan(uMesh))=0;
+vMesh(isnan(vMesh))=0;
 
 % Create grid for interpolation
-[xLoc, yLoc, tLoc] = meshgrid(xVec, yVec, tVec);
+[xLoc,yLoc,tLoc] = meshgrid(xVec,yVec,tVec);
 
 
 % Compute trajectory using Euler method with integration step
 % equal to time vector and 2-D cubic interpolation
-if strcmp(method, 'Euler')
+if strcmp(method,'Euler')
     for i = 1:length(tVec)
-        x0 = x0 + tVec(i) * interp2(xLoc(:, :, i), yLoc(:, :, i), ...
-            uMesh(:, :, i), x0, y0, 'cubic', 0);
-        y0 = y0 + tVec(i) * interp2(xLoc(:, :, i), yLoc(:, :, i), ...
-            vMesh(:, :, 1), x0, y0, 'cubic', 0);
+        x0 = x0 + tVec(i) * interp2(xLoc(:,:,i),yLoc(:,:,i), ...
+            uMesh(:,:,i), x0, y0, 'cubic', 0);
+        y0 = y0 + tVec(i) * interp2(xLoc(:,:,i),yLoc(:,:,i), ...
+            vMesh(:,:,1), x0, y0, 'cubic', 0);
     end
     X = x0;
     Y = y0;
 end
 
 % Compute trajectory using ODE45 and 3-D cubic interpolation
-if strcmp(method, 'RK45')
+if strcmp(method,'RK45')
     tic
 
     for ind = 1:numel(x0)
         % Create trajectory function with third order interpolation
-        xTrajectory = @(t, x) interp3(xLoc, yLoc, tLoc, uMesh, ...
-            x0(ind), y0(ind), t, 'cubic', 0);
-        yTrajectory = @(t, y) interp3(xLoc, yLoc, tLoc, ...
-            vMesh, x0(ind), y0(ind), t, 'cubic', 0);
+        xTrajectory =@(t,x) interp3(xLoc,yLoc,tLoc,uMesh,...
+            x0(ind),y0(ind),t,'cubic',0);
+        yTrajectory =@(t,y) interp3(xLoc,yLoc,tLoc,...
+            vMesh,x0(ind),y0(ind),t,'cubic',0);
 
         % Determine x and y trajectory Runge-Kutta 4th order
         % integration
-        [~, x] = ode45(xTrajectory, tVec, x0(ind));
-        [~, y] = ode45(yTrajectory, tVec, y0(ind));
+        [~,x] = ode45(xTrajectory, tVec, x0(ind));
+        [~,y] = ode45(yTrajectory, tVec, y0(ind));
 
         % assign trajectory at end time
         X(ind) = x(end);
@@ -221,8 +239,7 @@ end
 
 %Function calculateFTLE
 
-function out = calculateFTLE(ix, iy, flowmap_x, flowmap_y, tSpan, sxcoor, ...
-    sycoor)
+function out=calculateFTLE(ix, iy,flowmap_x,flowmap_y,tSpan, sxcoor,sycoor)
 % Function to compute FTLE of specfic flow map location.
 
 % Inputs
@@ -238,25 +255,25 @@ function out = calculateFTLE(ix, iy, flowmap_x, flowmap_y, tSpan, sxcoor, ...
 % out: Finite time Lyapunov exponent
 
 % Determine size of flow map
-[nx, ny] = size(flowmap_x);
+[nx, ny]=size(flowmap_x);
 
 % If the location is not on the edge of the flow map
-if (ix - 1) * (ix - nx) < 0 && (iy - 1) * (iy - ny) < 0
+if (ix-1)*(ix-nx)<0 && (iy-1)*(iy-ny)<0
     % Compute and assemble jacobian
-    dPhixdX = (flowmap_x(ix+1, iy) - flowmap_x(ix-1, iy)) ...
-        / (sxcoor(ix+1) - sxcoor(ix-1));
-    dPhixdY = (flowmap_x(ix, iy+1) - flowmap_x(ix, iy-1)) ...
-        / (sycoor(iy+1) - sycoor(iy-1));
-    dPhiydX = (flowmap_y(ix+1, iy) - flowmap_y(ix-1, iy)) ...
-        / (sxcoor(ix+1) - sxcoor(ix-1));
-    dPhiydY = (flowmap_y(ix, iy+1) - flowmap_y(ix, iy-1)) ...
-        / (sycoor(iy+1) - sycoor(iy-1));
-    A = [dPhixdX, dPhixdY; dPhiydX, dPhiydY];
+    dPhixdX=(flowmap_x(ix+1,iy)-flowmap_x(ix-1,iy))...
+        /(sxcoor(ix+1)-sxcoor(ix-1));
+    dPhixdY=(flowmap_x(ix,iy+1)-flowmap_x(ix,iy-1))...
+        /(sycoor(iy+1)-sycoor(iy-1));
+    dPhiydX=(flowmap_y(ix+1,iy)-flowmap_y(ix-1,iy))...
+        /(sxcoor(ix+1)-sxcoor(ix-1));
+    dPhiydY=(flowmap_y(ix,iy+1)-flowmap_y(ix,iy-1))...
+        /(sycoor(iy+1)-sycoor(iy-1));
+    A=[dPhixdX dPhixdY;dPhiydX dPhiydY];
     % Determine max eigenvalue of streching and compute FTLE
-    delta = A' * A;
-    out = log(max(eig(delta))) / abs(tSpan);
+    delta=A'*A;
+    out=log(max(eig(delta)))/abs(tSpan);
     % If the location is on the edge of the flow map
 else
-    out = 0;
+    out=0;
 end
 end
