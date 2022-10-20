@@ -107,10 +107,11 @@ U500 = Zeta(:, 1:500) * Sigma(1:500, 1:500) * Xi(:, 1:500)';
 
 %% FTLE
 
+% Create x and y vectors
 xVec = xMat(1, :);
 yVec = yMat(:, 1);
 
-tStart = length(tVec);
+% FTLE parameters (See function for description)
 tLength = -85;
 tStep = -2;
 xMinROI = min(xVec);
@@ -121,29 +122,55 @@ ROIx = 100;
 ROIy = 50;
 method = 'Euler';
 
-mymapred = [(0:0.1:1)', zeros(11, 2)];
+% First Frame to compute FTLE Field
+frameStart = length(tVec);
+% Last Frame to compute FTLE Field
+frameEnd = length(tVec) - 85;
+% Frame Increment
+frameInc = -5;
+% Frame loop vector
+fLoop = frameStart:frameInc:frameEnd;
 
-for i = tStart:round(tLength/20):tStart + tLength
+% Preallocate space for sigma
+sigma = zeros([ROIx, ROIy, length(fLoop)]);
 
-    % Compute FTLE
-    [sigma, xPos, yPos] = FTLE(uMat, vMat, xVec, yVec, ...
-        i, tLength, tStep, dt, ...
+for tStart = fLoop
+    [sigma(:, :, tStart), xPos, yPos] = FTLE(uMat, vMat, xVec, yVec, ...
+        tStart, tLength, tStep, dt, ...
         xMinROI, xMaxROI, yMinROI, yMaxROI, ...
-        ROIx, ROIy, method);
+        ROIx, ROIy, method, xMask, yMask-dy);
+end
 
+% Remove empty fields in sigma
+sigma = sigma(:, :, any(sigma, [1, 2]));
+
+%% Animate FTLE field
+
+
+for i = 1:size(sigma, 3)
     % Plot FTLE field
-    figure(4)
-    contourf(xPos(:, :, 1), yPos(:, :, 1), sigma, 10);
-    title('FTLE plot');
-    colormap(mymapred)
+    figure(9)
+    contourf(xPos(:, :, 1), yPos(:, :, 1), sigma(:, :, i), ...
+        10, 'linestyle', 'none');
+    colorbar
     hold on
     fill(xMask, yMask, 'k')
-    plot(xAirfoil, yAirfoil, 'w', 'LineWidth', 3)
+    plot(xAirfoil, yAirfoil, 'w', 'LineWidth', 2)
     axis equal
-    clim([4, 6])
     axis([xMinROI, xMaxROI, yMinROI, yMaxROI]);
     xlabel('x/c')
     ylabel('y/c')
     drawnow
+end
 
+% plot trajectory of last frame
+figure(10)
+for j = 1:size(xPos, 3)
+    plot(xPos(:, :, 1), yPos(:, :, 1), 'b.')
+    hold on
+    plot(xPos(:, :, j), yPos(:, :, j), 'r.')
+    hold off
+    axis equal
+    axis([xMinROI, xMaxROI, yMinROI, yMaxROI]);
+    drawnow;
 end
