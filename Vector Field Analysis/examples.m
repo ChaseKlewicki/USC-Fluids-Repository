@@ -107,9 +107,16 @@ U500 = Zeta(:, 1:500) * Sigma(1:500, 1:500) * Xi(:, 1:500)';
 
 %% FTLE
 
+% Sort in ascending order
+[yMat_sorted, index] = sort(yMat);
+
 % Create x and y vectors
 xVec = xMat(1, :);
-yVec = yMat(:, 1);
+yVec = yMat_sorted(:, 1);
+
+% Rearrange velocities for yMat sort
+uMesh = flipud(uMat);
+vMesh = flipud(vMat);
 
 % FTLE parameters (See function for description)
 tLength = -85;
@@ -118,8 +125,8 @@ xMinROI = min(xVec);
 xMaxROI = max(xVec);
 yMinROI = min(yVec);
 yMaxROI = max(yVec);
-ROIx = 100;
-ROIy = 50;
+ROIx = 200;
+ROIy = 100;
 method = 'Euler';
 
 % First Frame to compute FTLE Field
@@ -135,10 +142,10 @@ fLoop = frameStart:frameInc:frameEnd;
 sigma = zeros([ROIx, ROIy, length(fLoop)]);
 
 for tStart = fLoop
-    [sigma(:, :, tStart), xPos, yPos] = FTLE(uMat, vMat, xVec, yVec, ...
+    [sigma(:, :, tStart), xPos, yPos] = FTLE(uMesh, vMesh, xVec, yVec, ...
         tStart, tLength, tStep, dt, ...
         xMinROI, xMaxROI, yMinROI, yMaxROI, ...
-        ROIx, ROIy, method, xMask, yMask-dy);
+        ROIx, ROIy, method, 'xMask', xMask, 'yMask', yMask-dy);
 end
 
 % Remove empty fields in sigma
