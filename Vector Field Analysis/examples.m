@@ -32,7 +32,7 @@ vBar = mean(vMat, 3);
 % plot normalized time averaged velocties with curvilinear mesh
 
 figure(6)
-set(6, 'position', [1, 1, 1600, 1000])
+set(6, 'position', [1, 1, 800, 500])
 subplot(1, 2, 1)
 contourf(xMat, yMat, uBar, 'linestyle', 'none')
 hold on
@@ -66,7 +66,7 @@ set(gca, 'clim', [min(vBar, [], 'all'), max(uBar, [], 'all')])
 % Plot of contours of time averaged velocities in curvilinear coordinates
 
 figure(7)
-set(7, 'position', [1, 1, 1600, 1000])
+set(7, 'position', [1, 1, 800, 500])
 subplot(2, 1, 1)
 contourf(xw, yw, uw, 'linestyle', 'none')
 hold on
@@ -105,6 +105,22 @@ U03 = Zeta(:, 1:3) * Sigma(1:3, 1:3) * Xi(:, 1:3)';
 U10 = Zeta(:, 1:10) * Sigma(1:10, 1:10) * Xi(:, 1:10)';
 U500 = Zeta(:, 1:500) * Sigma(1:500, 1:500) * Xi(:, 1:500)';
 
+%% DMD
+
+% Number of DMD mode to compute 
+r=25;
+
+[eigenvalueMat, modeMat, uModeMat, vModeMat] = DMD(uMat, vMat, ...
+    dx, dy, dt, r);
+
+% Plot eigenvalues
+figure
+plot(diag(eigenvalueMat), '.')
+hold on
+% Plot unit circle
+th = 0:pi/50:2*pi;
+plot(cos(th),sin(th), '--k')
+
 %% FTLE
 
 % Sort in ascending order
@@ -134,7 +150,7 @@ frameStart = length(tVec);
 % Last Frame to compute FTLE Field
 frameEnd = length(tVec) - 85;
 % Frame Increment
-frameInc = -5;
+frameInc = -1;
 % Frame loop vector
 fLoop = frameStart:frameInc:frameEnd;
 
@@ -153,13 +169,20 @@ sigma = sigma(:, :, any(sigma, [1, 2]));
 
 %% Animate FTLE field
 
+figure(9)
+% Color map
+colormap(hot)
+% Color limits
+cmin = 5;
+cmax = 10;
 
 for i = 1:size(sigma, 3)
+    clf
     % Plot FTLE field
-    figure(9)
     contourf(xPos(:, :, 1), yPos(:, :, 1), sigma(:, :, i), ...
-        10, 'linestyle', 'none');
+        linspace(cmin, cmax, 10), 'linestyle', 'none');
     colorbar
+%     clim([cmin cmax])
     hold on
     fill(xMask, yMask, 'k')
     plot(xAirfoil, yAirfoil, 'w', 'LineWidth', 2)
