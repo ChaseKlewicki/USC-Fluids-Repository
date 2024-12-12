@@ -1,5 +1,7 @@
 % This script shows examples of how to use the functions in the
 % Vector Field Analysis directory.
+
+% Authors: Chase Klewicki (main)
 clear
 close all
 clc
